@@ -1,8 +1,8 @@
 package com.int0blivion.socketclient;
 
 import android.app.Activity;
-import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.view.GestureDetectorCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -15,11 +15,14 @@ import android.widget.EditText;
 import android.widget.TextView;
 
 import com.google.common.base.Preconditions;
-import com.int0blivion.socketclient.connection.SocketClient;
+import com.int0blivion.socketclient.connection.ConnectionCallback;
+import com.int0blivion.socketclient.connection.SocketController;
 import com.mikepenz.materialdrawer.Drawer;
 import com.mikepenz.materialdrawer.DrawerBuilder;
 import com.mikepenz.materialdrawer.model.PrimaryDrawerItem;
 import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
+
+import java.net.InetSocketAddress;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -35,7 +38,8 @@ public class MainController {
     @Bind(R.id.editText_KeyboardInput) EditText editTextKeyboardInput;
     @Bind(R.id.textView_Information) TextView textViewInfo;
 
-    private SocketClient mSocketClient;
+    private SocketController mSocketController;
+    private ConnectionCallback mConnectionCallback;
 
     private Drawer mDrawer;
     private GestureDetectorCompat mGestureDetector;
@@ -44,6 +48,11 @@ public class MainController {
     private float mRightClickX = -1;
     private float mRightClickY = -1;
     private boolean isKeyboardOpened;
+
+    public MainController() {
+        mConnectionCallback = new SocketCallback();
+        mSocketController = new SocketController(mConnectionCallback);
+    }
 
     public void initialize(@NonNull AppCompatActivity activity, @NonNull Toolbar toolbar) {
         Preconditions.checkNotNull(activity, "activity");
@@ -56,40 +65,34 @@ public class MainController {
 
         mGestureDetector = new GestureDetectorCompat(activity, detector);
         mGestureDetector.setOnDoubleTapListener(detector);
-        editTextKeyboardInput.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after)
-            {
-
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count)
-            {
-
-            }
-
-            @Override
-            public void afterTextChanged(Editable s)
-            {
-                mSocketClient.writeString(s.toString());
-            }
-        });
+        editTextKeyboardInput.addTextChangedListener(new EditTextWatcher());
     }
 
-    public void initializeConnection() {
-        mSocketClient = new SocketClient("192.168.50.192", 11000);
-    }
+    public void connect(@NonNull InetSocketAddress address) {
+        Preconditions.checkNotNull(address, "address");
 
-    public void disconnect() {
-        if(mSocketClient != null) {
-            mSocketClient.disconnect();
-        }
+        disconnect();
+        mSocketController.connect(address);
     }
 
     public void reconnect() {
-        disconnect();
-        initializeConnection();
+        mSocketController.reconnect();
+    }
+
+    public void disconnect() {
+        if(mSocketController != null) {
+            mSocketController.disconnect();
+        }
+    }
+
+    public boolean onBackPressed() {
+        //handle the back press :D close the drawer first and if the drawer is closed close the activity
+        if (mDrawer != null && mDrawer.isDrawerOpen()) {
+            mDrawer.closeDrawer();
+            return true;
+        }
+
+        return false;
     }
 
     public boolean onTouchEvent(@NonNull MotionEvent e) {
@@ -104,7 +107,7 @@ public class MainController {
                 mRightClickY = -1;
             }
         } else if (e.getActionIndex() > 0 && e.getActionMasked() == MotionEvent.ACTION_POINTER_UP) {
-            mSocketClient.writeByte(PacketType.RIGHT_CLICK);
+            mSocketController.writeByte(PacketType.RIGHT_CLICK);
 
             mRightClickY = e.getY(0);
             mRightClickX = e.getX(0);
@@ -136,15 +139,15 @@ public class MainController {
             public boolean onItemClick(View view, int position, IDrawerItem drawerItem) {
                 switch (position) {
                     case SLEEP:
-                        mSocketClient.writeByte(PacketType.SLEEP);
+                        mSocketController.writeByte(PacketType.SLEEP);
                         break;
 
                     case SHUTDOWN:
-                        mSocketClient.writeByte(PacketType.SHUTDOWN);
+                        mSocketController.writeByte(PacketType.SHUTDOWN);
                         break;
 
                     case RESTART:
-                        mSocketClient.writeByte(PacketType.RESTART);
+                        mSocketController.writeByte(PacketType.RESTART);
                         break;
                 }
 
@@ -179,7 +182,7 @@ public class MainController {
     public class SwipeGestureDetector extends GestureDetector.SimpleOnGestureListener {
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-            mSocketClient.writeBytes(PacketType.SCROLL, -1 * distanceX, -1 * distanceY);
+            mSocketController.writeBytes(PacketType.SCROLL, -1 * distanceX, -1 * distanceY);
 
             return false;
         }
@@ -187,10 +190,10 @@ public class MainController {
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
             if(e.getPointerCount() > 1) {
-                mSocketClient.writeByte(PacketType.RIGHT_CLICK);
+                mSocketController.writeByte(PacketType.RIGHT_CLICK);
             }
             else {
-                mSocketClient.writeByte(PacketType.SINGLE_CLICK);
+                mSocketController.writeByte(PacketType.SINGLE_CLICK);
             }
 
             return true;
@@ -198,9 +201,44 @@ public class MainController {
 
         @Override
         public boolean onDoubleTap(MotionEvent e) {
-            mSocketClient.writeByte(PacketType.DOUBLE_CLICK);
+            mSocketController.writeByte(PacketType.DOUBLE_CLICK);
 
             return true;
+        }
+    }
+
+    public class EditTextWatcher implements TextWatcher {
+        @Override
+        public void beforeTextChanged (CharSequence s, int start, int count, int after) {
+
+        }
+
+        @Override
+        public void onTextChanged (CharSequence s,int start, int before, int count) {
+
+        }
+
+        @Override
+        public void afterTextChanged (Editable s) {
+            mSocketController.writeString(s.toString());
+        }
+    }
+
+    public class SocketCallback implements ConnectionCallback {
+
+        @Override
+        public void onConnected() {
+
+        }
+
+        @Override
+        public void onDisconnected() {
+
+        }
+
+        @Override
+        public void onStatusUpdate(@Nullable String status) {
+
         }
     }
 }

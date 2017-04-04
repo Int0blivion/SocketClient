@@ -5,7 +5,7 @@ import android.support.annotation.Nullable;
 /**
  * Created by Matt on 4/2/2017.
  */
-public interface ConnectionCallbacks {
+public interface ConnectionCallback {
 
     void onConnected();
 
