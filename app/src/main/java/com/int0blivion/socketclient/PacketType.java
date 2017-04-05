@@ -3,25 +3,25 @@ package com.int0blivion.socketclient;
 /**
  * Created by Matt on 1/24/2016.
  */
-public class PacketType
-{
-    public static final byte SINGLE_CLICK = 0b0;
-
-    public static final byte DOUBLE_CLICK = 0b1;
-
-    public static final byte SCROLL = 0b10;
-
-    public static final byte RIGHT_CLICK = 0b11;
-
-    public static final byte START_KEYBOARD = (byte) 4;
-
-    public static final byte END_KEYBOARD = (byte) 5;
-
-    public static final byte SLEEP = (byte) 252;
-
-    public static final byte RESTART = (byte) 253;
-
-    public static final byte SHUTDOWN = (byte) 254;
-
-    public static final byte DISCONNECT = (byte) 255;
+public enum PacketType {
+    SINGLE_CLICK((byte) 0),
+    DOUBLE_CLICK((byte) 1),
+    SCROLL((byte) 2),
+    RIGHT_CLICK((byte) 3),
+    START_KEYBOARD((byte) 4),
+    END_KEYBOARD((byte) 5),
+    SLEEP((byte) 252),
+    RESTART((byte) 253),
+    SHUTDOWN((byte) 254),
+    DISCONNECT((byte) 255);
+    
+    private final byte mValue;
+    
+    PacketType(byte b) {
+        mValue = b;    
+    }
+    
+    public byte value() {
+        return mValue;
+    }
 }

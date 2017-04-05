@@ -36,7 +36,7 @@ public class MainController {
     private static final int RESTART = 0x2;
 
     @Bind(R.id.editText_KeyboardInput) EditText editTextKeyboardInput;
-    @Bind(R.id.textView_Information) TextView textViewInfo;
+    @Bind(R.id.textView_Information) TextView mInfoTextView;
 
     private SocketController mSocketController;
     private ConnectionCallback mConnectionCallback;
@@ -107,7 +107,7 @@ public class MainController {
                 mRightClickY = -1;
             }
         } else if (e.getActionIndex() > 0 && e.getActionMasked() == MotionEvent.ACTION_POINTER_UP) {
-            mSocketController.writeByte(PacketType.RIGHT_CLICK);
+            mSocketController.sendPacket(PacketType.RIGHT_CLICK);
 
             mRightClickY = e.getY(0);
             mRightClickX = e.getX(0);
@@ -139,15 +139,15 @@ public class MainController {
             public boolean onItemClick(View view, int position, IDrawerItem drawerItem) {
                 switch (position) {
                     case SLEEP:
-                        mSocketController.writeByte(PacketType.SLEEP);
+                        mSocketController.sendPacket(PacketType.SLEEP);
                         break;
 
                     case SHUTDOWN:
-                        mSocketController.writeByte(PacketType.SHUTDOWN);
+                        mSocketController.sendPacket(PacketType.SHUTDOWN);
                         break;
 
                     case RESTART:
-                        mSocketController.writeByte(PacketType.RESTART);
+                        mSocketController.sendPacket(PacketType.RESTART);
                         break;
                 }
 
@@ -180,9 +180,11 @@ public class MainController {
     }
 
     public class SwipeGestureDetector extends GestureDetector.SimpleOnGestureListener {
+
+        // TODO: update this somehow
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-            mSocketController.writeBytes(PacketType.SCROLL, -1 * distanceX, -1 * distanceY);
+            mSocketController.writeBytes(PacketType.SCROLL.value(), -1 * distanceX, -1 * distanceY);
 
             return false;
         }
@@ -190,10 +192,9 @@ public class MainController {
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
             if(e.getPointerCount() > 1) {
-                mSocketController.writeByte(PacketType.RIGHT_CLICK);
-            }
-            else {
-                mSocketController.writeByte(PacketType.SINGLE_CLICK);
+                mSocketController.sendPacket(PacketType.RIGHT_CLICK);
+            } else {
+                mSocketController.sendPacket(PacketType.SINGLE_CLICK);
             }
 
             return true;
@@ -201,7 +202,7 @@ public class MainController {
 
         @Override
         public boolean onDoubleTap(MotionEvent e) {
-            mSocketController.writeByte(PacketType.DOUBLE_CLICK);
+            mSocketController.sendPacket(PacketType.DOUBLE_CLICK);
 
             return true;
         }
@@ -228,17 +229,17 @@ public class MainController {
 
         @Override
         public void onConnected() {
-
+            mInfoTextView.setText("Socket Connected");
         }
 
         @Override
         public void onDisconnected() {
-
+            mInfoTextView.setText("Socket Disconnected");
         }
 
         @Override
         public void onStatusUpdate(@Nullable String status) {
-
+            mInfoTextView.setText(status);
         }
     }
 }

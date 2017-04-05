@@ -24,7 +24,9 @@ public class SocketController {
 
     private final Executor mExecutor;
     private final ConnectionCallback mConnectionCallback;
-    private final Socket mSocket;
+
+    private Socket mSocket;
+    private SocketAddress mAddress;
 
     public SocketController(@NonNull ConnectionCallback callback) {
         this(callback, Executors.newSingleThreadExecutor(), new Socket());
@@ -38,23 +40,32 @@ public class SocketController {
     }
 
     public void connect(@NonNull InetSocketAddress address) {
-        Preconditions.checkNotNull(address, "address");
+        mAddress = Preconditions.checkNotNull(address, "address");
 
-        final ConnectionRunnable connectionRunnable = new ConnectionRunnable(mConnectionCallback, mSocket, address);
+        final ConnectionRunnable connectionRunnable = new ConnectionRunnable(mConnectionCallback, mSocket, mAddress, TIMEOUT);
         mExecutor.execute(connectionRunnable);
     }
 
     public void reconnect() {
-        final ConnectionRunnable connectionRunnable = new ConnectionRunnable(mConnectionCallback, mSocket, mSocket.getLocalSocketAddress());
+        // TODO: Is this safe to do on the main thread?
+         try {
+            mSocket.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        mSocket = new Socket();
+        final ConnectionRunnable connectionRunnable = new ConnectionRunnable(mConnectionCallback, mSocket, mAddress, TIMEOUT);
         mExecutor.execute(connectionRunnable);
     }
 
     public void disconnect() {
-        writeByte(PacketType.DISCONNECT);
+        final DisconnectRunnable runnable = new DisconnectRunnable(mConnectionCallback, mSocket);
+        mExecutor.execute(runnable);
     }
 
-    public void writeByte(byte b) {
-        final ByteOutputRunnable runnable = new ByteOutputRunnable(mConnectionCallback, mSocket, b);
+    public void sendPacket(PacketType packet) {
+        final ByteOutputRunnable runnable = new ByteOutputRunnable(mConnectionCallback, mSocket, packet);
         mExecutor.execute(runnable);
     }
 
@@ -80,69 +91,81 @@ public class SocketController {
     private static class ConnectionRunnable extends SocketRunnable {
         private final Socket mSocket;
         private final SocketAddress mAddress;
-        private final ConnectionCallback mConnectionCallback;
+        private final int mTimeout;
 
-        public ConnectionRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket, @NonNull SocketAddress address) {
-            mConnectionCallback = Preconditions.checkNotNull(callback, "callback");
+        public ConnectionRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket, @NonNull SocketAddress address, int timeout) {
+            super(callback);
+
             mSocket = Preconditions.checkNotNull(socket, "socket");
             mAddress = Preconditions.checkNotNull(address, "address");
+            mTimeout = timeout;
         }
 
         @Override
         protected void sendData() throws IOException {
-            mSocket.connect(mAddress);
+            mSocket.connect(mAddress, mTimeout);
         }
 
         @Override
         protected void onSuccess() {
-
-        }
-
-        @Override
-        protected void onException(@NonNull Exception e) {
-            mConnectionCallback.onStatusUpdate(e.getMessage());
+            mConnectionCallback.onConnected();
         }
     }
 
-    private static class ByteOutputRunnable extends SocketRunnable {
-        private final byte mByte;
-        private final Socket mSocket;
-        private final ConnectionCallback mConnectionCallback;
+    /**
+     * Socket runnable to asynchronously disconnect a given socket
+     */
+    private static class DisconnectRunnable extends ByteOutputRunnable {
+        public DisconnectRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket) {
+            super(callback, socket, PacketType.DISCONNECT);
+        }
 
-        public ByteOutputRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket, byte b) {
-            mConnectionCallback = Preconditions.checkNotNull(callback, "callback");
+        @Override
+        protected void onSuccess() {
+            mConnectionCallback.onDisconnected();
+        }
+    }
+
+    /**
+     * Socket runnable to send a single byte of data asynchronously
+     */
+    private static class ByteOutputRunnable extends SocketRunnable {
+        private final PacketType mPacket;
+        private final Socket mSocket;
+
+        public ByteOutputRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket, PacketType packet) {
+            super(callback);
+
             mSocket = Preconditions.checkNotNull(socket);
-            mByte = b;
+            mPacket = packet;
         }
 
         @Override
         protected void sendData() throws IOException {
             final DataOutputStream outputStream = new DataOutputStream(mSocket.getOutputStream());
 
-            outputStream.writeByte(mByte);
+            outputStream.writeByte(mPacket.value());
             outputStream.flush();
         }
 
         @Override
         protected void onSuccess() {
-
-        }
-
-        @Override
-        protected void onException(@NonNull Exception e) {
-            mConnectionCallback.onStatusUpdate(e.getMessage());
+            mConnectionCallback.onStatusUpdate(String.format("Successfully sent packet: %s", mPacket.name()));
         }
     }
 
+    /**
+     * Socket runnable to send a scroll event asynchronously
+     */
     private static class ScrollOutputRunnable extends SocketRunnable {
         private final byte mByte;
         private final float mX;
         private final float mY;
         private final Socket mSocket;
-        private final ConnectionCallback mConnectionCallback;
 
         public ScrollOutputRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket, byte b, float x, float y) {
-            mConnectionCallback = Preconditions.checkNotNull(callback, "callback");
+            super(callback);
+
             mSocket = Preconditions.checkNotNull(socket);
             mByte = b;
             mX = x;
@@ -161,22 +184,20 @@ public class SocketController {
 
         @Override
         protected void onSuccess() {
-
-        }
-
-        @Override
-        protected void onException(@NonNull Exception e) {
-            mConnectionCallback.onStatusUpdate(e.getMessage());
+            mConnectionCallback.onStatusUpdate("Successfully sent scroll event");
         }
     }
 
+    /**
+     * Socket runnable to send a string of data asynchronously
+     */
     private static class StringOutputRunnable extends SocketRunnable {
         private final String mString;
         private final Socket mSocket;
-        private final ConnectionCallback mConnectionCallback;
 
         public StringOutputRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket, @NonNull String string) {
-            mConnectionCallback = Preconditions.checkNotNull(callback, "callback");
+            super(callback);
+
             mSocket = Preconditions.checkNotNull(socket);
             mString = string;
         }
@@ -193,12 +214,7 @@ public class SocketController {
 
         @Override
         protected void onSuccess() {
-
-        }
-
-        @Override
-        protected void onException(@NonNull Exception e) {
-            mConnectionCallback.onStatusUpdate(e.getMessage());
+            mConnectionCallback.onStatusUpdate(String.format("Successfully sent string %s", mString));
         }
     }
 }
