@@ -24,7 +24,7 @@ import java.util.concurrent.Executors;
  * Created by Matt on 4/2/2017.
  */
 public class SocketController {
-    private static final int PORT = 110000;
+    private static final int PORT = 11000;
     private static final String ADDRESS = "192.168.50.192";
     private static final int TIMEOUT = 1000;
 
