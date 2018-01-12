@@ -17,41 +17,47 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
+ * Controls all direct socket-related logic.
+ *
+ * TODO: Should this be further split to handle socket connection? (e.g. WaitOnConnection)
+ *
  * Created by Matt on 4/2/2017.
  */
 public class SocketController {
+    private static final int PORT = 110000;
+    private static final String ADDRESS = "192.168.50.192";
     private static final int TIMEOUT = 1000;
 
     private final Executor mExecutor;
     private final ConnectionCallback mConnectionCallback;
 
     private Socket mSocket;
-    private SocketAddress mAddress;
+    private InetSocketAddress mAddress;
 
     public SocketController(@NonNull ConnectionCallback callback) {
-        this(callback, Executors.newSingleThreadExecutor(), new Socket());
+        this(callback, Executors.newSingleThreadExecutor(), new InetSocketAddress(ADDRESS, PORT));
     }
 
     @VisibleForTesting
-    SocketController(@NonNull ConnectionCallback callback, @NonNull Executor executor, @NonNull Socket socket) {
+    SocketController(@NonNull ConnectionCallback callback, @NonNull Executor executor, @NonNull InetSocketAddress address) {
         mConnectionCallback = Preconditions.checkNotNull(callback);
         mExecutor = Preconditions.checkNotNull(executor);
-        mSocket = Preconditions.checkNotNull(socket, "socket");
+        mAddress = Preconditions.checkNotNull(address);
     }
 
-    public void connect(@NonNull InetSocketAddress address) {
-        mAddress = Preconditions.checkNotNull(address, "address");
+    public void setAddress(@NonNull String address) {
+        Preconditions.checkNotNull(address, "address");
 
-        final ConnectionRunnable connectionRunnable = new ConnectionRunnable(mConnectionCallback, mSocket, mAddress, TIMEOUT);
-        mExecutor.execute(connectionRunnable);
+        mAddress = new InetSocketAddress(address, PORT);
     }
 
-    public void reconnect() {
-        // TODO: Is this safe to do on the main thread?
-         try {
-            mSocket.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+    /**
+     * Connects the socket to the given {@link InetSocketAddress}
+     */
+    public void connect() {
+        if (mSocket != null && mSocket.isConnected()) {
+            final DisconnectRunnable disconnectRunnable = new DisconnectRunnable(mConnectionCallback, mSocket);
+            mExecutor.execute(disconnectRunnable);
         }
 
         mSocket = new Socket();
@@ -59,7 +65,17 @@ public class SocketController {
         mExecutor.execute(connectionRunnable);
     }
 
+    public void reconnect() {
+        Preconditions.checkState(mAddress != null, "No Address given to reconnect to.");
+
+        connect();
+    }
+
     public void disconnect() {
+        if (mSocket.isClosed()) {
+            return;
+        }
+
         final DisconnectRunnable runnable = new DisconnectRunnable(mConnectionCallback, mSocket);
         mExecutor.execute(runnable);
     }
@@ -116,8 +132,19 @@ public class SocketController {
      * Socket runnable to asynchronously disconnect a given socket
      */
     private static class DisconnectRunnable extends ByteOutputRunnable {
+        private final Socket mSocket;
+
         public DisconnectRunnable(@NonNull ConnectionCallback callback, @NonNull Socket socket) {
             super(callback, socket, PacketType.DISCONNECT);
+
+            mSocket = Preconditions.checkNotNull(socket, "socket");
+        }
+
+        @Override
+        protected void sendData() throws IOException{
+            super.sendData();
+
+            mSocket.close();
         }
 
         @Override

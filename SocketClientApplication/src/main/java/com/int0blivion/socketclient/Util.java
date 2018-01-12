@@ -1,9 +1,12 @@
 package com.int0blivion.socketclient;
 
 import android.app.Activity;
+import android.support.annotation.NonNull;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+
+import com.google.common.base.Preconditions;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -24,11 +27,16 @@ public class Util {
         inputMethodManager.hideSoftInputFromWindow(v.getWindowToken(), 0);
     }
 
-    public static boolean hitTest(View v, MotionEvent e) {
+    public static boolean hitTest(@NonNull View view, @NonNull MotionEvent motionEvent) {
+        Preconditions.checkNotNull(view, "view");
+        Preconditions.checkNotNull(motionEvent, "motionEvent");
         final int[] viewPosition = new int[2];
 
-        v.getLocationInWindow(viewPosition);
+        view.getLocationInWindow(viewPosition);
 
-        return e.getRawX() >= viewPosition[0] && e.getRawX() <= viewPosition[0] + v.getWidth() && e.getRawY() >= viewPosition[1] && e.getRawY() <= viewPosition[1] + v.getHeight();
+        return (motionEvent.getRawX() >= viewPosition[0]
+                && motionEvent.getRawX() <= (viewPosition[0] + view.getWidth())
+                && motionEvent.getRawY() >= viewPosition[1]
+                && motionEvent.getRawY() <= (viewPosition[1] + view.getHeight()));
     }
 }

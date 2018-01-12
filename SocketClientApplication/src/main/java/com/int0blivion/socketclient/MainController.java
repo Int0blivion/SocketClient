@@ -35,8 +35,10 @@ public class MainController {
     private static final int SHUTDOWN = 0x1;
     private static final int RESTART = 0x2;
 
-    @Bind(R.id.editText_KeyboardInput) EditText editTextKeyboardInput;
-    @Bind(R.id.textView_Information) TextView mInfoTextView;
+    @Bind(R.id.editText_KeyboardInput)
+    EditText editTextKeyboardInput;
+    @Bind(R.id.textView_Information)
+    TextView mInfoTextView;
 
     private SocketController mSocketController;
     private ConnectionCallback mConnectionCallback;
@@ -48,11 +50,6 @@ public class MainController {
     private float mRightClickX = -1;
     private float mRightClickY = -1;
     private boolean isKeyboardOpened;
-
-    public MainController() {
-        mConnectionCallback = new SocketCallback();
-        mSocketController = new SocketController(mConnectionCallback);
-    }
 
     public void initialize(@NonNull AppCompatActivity activity, @NonNull Toolbar toolbar) {
         Preconditions.checkNotNull(activity, "activity");
@@ -66,13 +63,12 @@ public class MainController {
         mGestureDetector = new GestureDetectorCompat(activity, detector);
         mGestureDetector.setOnDoubleTapListener(detector);
         editTextKeyboardInput.addTextChangedListener(new EditTextWatcher());
+        mConnectionCallback = new SocketCallback(mInfoTextView);
+        mSocketController = new SocketController(mConnectionCallback);
     }
 
-    public void connect(@NonNull InetSocketAddress address) {
-        Preconditions.checkNotNull(address, "address");
-
-        disconnect();
-        mSocketController.connect(address);
+    public void connect() {
+        mSocketController.connect();
     }
 
     public void reconnect() {
@@ -86,7 +82,6 @@ public class MainController {
     }
 
     public boolean onBackPressed() {
-        //handle the back press :D close the drawer first and if the drawer is closed close the activity
         if (mDrawer != null && mDrawer.isDrawerOpen()) {
             mDrawer.closeDrawer();
             return true;
@@ -225,7 +220,12 @@ public class MainController {
         }
     }
 
-    public class SocketCallback implements ConnectionCallback {
+    public static class SocketCallback implements ConnectionCallback {
+        private final TextView mInfoTextView;
+
+        public SocketCallback(@NonNull TextView textView) {
+            mInfoTextView = Preconditions.checkNotNull(textView, "textView");
+        }
 
         @Override
         public void onConnected() {

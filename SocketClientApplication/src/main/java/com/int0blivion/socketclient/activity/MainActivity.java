@@ -2,25 +2,17 @@ package com.int0blivion.socketclient.activity;
 
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.v4.view.GestureDetectorCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
-import android.widget.EditText;
-import android.widget.TextView;
 
 import com.int0blivion.socketclient.MainController;
 import com.int0blivion.socketclient.R;
 import com.int0blivion.socketclient.di.ActivityComponent;
-import com.mikepenz.materialdrawer.Drawer;
-
-import java.net.InetSocketAddress;
 
 import javax.inject.Inject;
 
-import butterknife.Bind;
 import butterknife.ButterKnife;
 
 public class MainActivity extends BaseDependencyInjectingActivity {
@@ -36,7 +28,7 @@ public class MainActivity extends BaseDependencyInjectingActivity {
         final Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         mMainController.initialize(this, toolbar);
-        mMainController.connect(new InetSocketAddress("192.168.50.192", 11000));
+        mMainController.connect();
     }
 
     @Override
@@ -45,17 +37,24 @@ public class MainActivity extends BaseDependencyInjectingActivity {
     }
 
     @Override
+    public void onRestart() {
+        super.onRestart();
+
+        mMainController.reconnect();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+
+        mMainController.disconnect();
+    }
+
+    @Override
     public void onBackPressed() {
         if (!mMainController.onBackPressed()) {
             super.onBackPressed();
         }
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-
-        mMainController.disconnect();
     }
 
     @Override
@@ -69,6 +68,7 @@ public class MainActivity extends BaseDependencyInjectingActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        // TODO: Redo this. Possibly into an enum
         // Handle item selection
         switch (item.getItemId()) {
             case R.id.action_disconnect:
